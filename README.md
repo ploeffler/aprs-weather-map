@@ -93,3 +93,7 @@ Der Pages-Workflow wird bei Änderungen an der Website oder den generierten Wett
 ## Synoptische Kartenbedienung
 
 Die Isobaren können eingeblendet werden und erhalten automatisch ausgedünnte Beschriftungen in hPa. Beschriftungen werden abhängig vom sichtbaren Kartenausschnitt neu gesetzt. Regionale Schnellzoom-Schaltflächen bieten großräumige Ausschnitte für Europa/Nordatlantik, Nordamerika, Ostasien/Pazifik, Südamerika, Afrika, Australien/Ozeanien und die Welt. Die Isobaren bleiben eine konservative Interpolation aus gemessenem Meeresspiegeldruck; unzureichend abgedeckte Gebiete bleiben ohne Linien.
+
+### Hoch- und Tiefdruckzentren
+
+Im aktivierten Isobaren-Layer kennzeichnen **H** (rot) und **T** (blau) automatisch erkannte lokale Extrema des interpolierten Meeresspiegeldrucks. Erforderlich sind ein vollständig gültiges 3×3-Gitterfeld, ein Mindestunterschied von 1,5 hPa und mindestens 500 km Abstand zu gleichartigen markierten Zentren. Das sind **vorläufige, datenabhängige lokale Druckzentren**, keine amtlich analysierten Hoch- oder Tiefdruckgebiete. Bei zu geringer Stationsabdeckung werden keine Symbole erzeugt. Die Erkennung wird beim nächsten Datensammellauf neu berechnet.
