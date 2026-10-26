@@ -103,6 +103,9 @@ Promise.all([
     .bindPopup(escapeHtml(props.hpa)+' hPa – interpolierte Isobare (Meeresspiegeldruck)').addTo(isobars);
   }
  }
+ // Focus on the actual measured coverage instead of an arbitrary ocean-centred view.
+ const bounds=L.featureGroup(cells.getLayers()).getBounds();
+ if(bounds && bounds.isValid()) map.fitBounds(bounds,{padding:[24,24],maxZoom:5});
  document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+(pressureGeo.metadata?.pressure_stations||0)+' mit Meeresspiegeldruck · '+rainStations.filter(s=>Number.isFinite(s.weather?.rain_1h)).length+' mit Stunden-Niederschlag · '+data.generated_at+' · APRS-Stichprobe';
 }).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
