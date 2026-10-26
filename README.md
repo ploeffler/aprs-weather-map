@@ -69,3 +69,7 @@ Tests: `python -m unittest discover -s tests`. Die Tests sind im Repository hint
 Die APRS-IS-Erfassung markiert Kennungen nach den Mustern `CW`, `DW`, `EW` oder `FW` plus 4–6 Ziffern (optional APRS-SSID) als **CWOP-Kandidaten** (`source: CWOP`, `source_classification: callsign_pattern`). Diese Mustererkennung ist keine bestätigte CWOP-Registrierung; andere registrierte CWOP-Stationen können weiter als APRS erscheinen. Der Datenweg bleibt APRS-IS; keine zusätzliche CWOP-Verbindung. Für eine verbindliche Zuordnung wäre ein zuverlässiger Stationsregisterabgleich nötig.
 
 Der GitHub-Actions-Workflow führt jetzt vor jeder Sammlung `python -m unittest discover -s tests -v` aus. Ein fehlerhafter Test stoppt den Lauf, bevor neue Daten erzeugt werden. Die neue Version muss noch durch einen Workflow-Lauf bestätigt werden.
+
+## Windpfeile (v0.7)
+
+Die Webkarte bietet den separat schaltbaren Layer **Windpfeile (Messwerte)**. Pfeile stehen direkt an den tatsächlichen Stationspositionen, zeigen in die **Windbewegungsrichtung** (180° gegenüber der meteorologischen Herkunftsrichtung) und haben eine nach Geschwindigkeit begrenzte Länge. Farben kennzeichnen grobe Geschwindigkeitsstufen; der Popup enthält die exakte Windgeschwindigkeit in m/s und die meteorologische Herkunftsrichtung in Grad. Es erfolgt **keine** Windfeldinterpolation. Stationen ohne gültige Windgeschwindigkeit und Windrichtung werden ausgelassen. Bei hoher Stationsdichte können Pfeile überlappen; eine Ausdünnung nach Zoomstufe ist als nächster Optimierungsschritt vorgesehen.
