@@ -35,6 +35,18 @@ jobs:
           test -s _site/data/temperature.geojson
           test -s _site/data/pressure.geojson
           python - <<'PY'
+          from pathlib import Path
+          html = Path('_site/index.html').read_text(encoding='utf-8')
+          assert '<div id="map"></div>' in html, 'Missing Leaflet map container'
+          assert "L.map('map')" in html, 'Missing Leaflet map initialization'
+          assert "fetch('./data/latest.json')" in html, 'Missing stations data URL'
+          assert "fetch('./data/temperature.geojson')" in html, 'Missing temperature URL'
+          assert "fetch('./data/pressure.geojson')" in html, 'Missing pressure URL'
+          assert 'data-region="europe"' in html, 'Missing region controls'
+          assert 'pressure-center' in html, 'Missing high/low marker support'
+          print('Validated interactive weather map entrypoint')
+          PY
+          python - <<'PY'
           import json
           from pathlib import Path
           for file in Path('_site/data').iterdir():
