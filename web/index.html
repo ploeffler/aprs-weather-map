@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>APRS Weather Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>body{margin:0;font-family:system-ui;background:#111827;color:white}header{padding:12px 20px}#map{height:calc(100vh - 100px)}small{color:#b6c2d2}</style></head>
+<body><header><strong>APRS Weather Map</strong><div><small id="status">Lade Stationsdaten …</small></div></header>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map=L.map('map').setView([25,0],3);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:18}).addTo(map);
+fetch('../data/latest.json').then(r=>{if(!r.ok)throw Error('Keine Daten');return r.json()}).then(data=>{
+let count=0;
+for(const s of data.stations||[]){
+if(!Number.isFinite(s.latitude)||!Number.isFinite(s.longitude))continue;
+const wx=s.weather||{};
+const details=Object.entries(wx).map(([k,v])=>'<div>'+escapeHtml(k)+': '+escapeHtml(String(v))+'</div>').join('');
+L.circleMarker([s.latitude,s.longitude],{radius:5,color:'#087ac7',fillOpacity:.75})
+.bindPopup('<b>'+escapeHtml(s.callsign)+'</b><div>'+escapeHtml(s.received_at)+'</div>'+details).addTo(map);
+count++;
+}
+document.getElementById('status').textContent=count+' Wetterstationen · Erfassung: '+data.generated_at+' · Momentaufnahme, keine lückenlose Abdeckung';
+}).catch(e=>document.getElementById('status').textContent='Daten nicht verfügbar: '+e.message);
+function escapeHtml(x){return x.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+</script></body></html>
