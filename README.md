@@ -89,3 +89,7 @@ Die interaktive Karte wird aus `web/index.html` und den automatisch erzeugten Da
 **Einmalige Einrichtung:** Unter **Settings → Pages → Build and deployment → Source** die Option **GitHub Actions** auswählen. Anschließend den Workflow **Publish weather map to GitHub Pages** einmal manuell starten oder auf den nächsten Push warten. Erwartete Adresse: https://ploeffler.github.io/aprs-weather-map/ (erst nach erfolgreichem Deployment erreichbar).
 
 Der Pages-Workflow wird bei Änderungen an der Website oder den generierten Wetterdaten automatisch ausgelöst. Die Datensammlung läuft weiterhin alle 15 Minuten; nach erfolgreichem Commit wird die statische Seite neu veröffentlicht. GitHub Pages führt keinen Python-Code aus. Der lokale Server (`python server.py`) bleibt nutzbar. Beachte: Bei einem öffentlichen Repository sind veröffentlichte Stationsdaten und Karten weltweit abrufbar; **niemals Secrets oder Archive in `_site` kopieren**.
+
+## Synoptische Kartenbedienung
+
+Die Isobaren können eingeblendet werden und erhalten automatisch ausgedünnte Beschriftungen in hPa. Beschriftungen werden abhängig vom sichtbaren Kartenausschnitt neu gesetzt. Regionale Schnellzoom-Schaltflächen bieten großräumige Ausschnitte für Europa/Nordatlantik, Nordamerika, Ostasien/Pazifik, Südamerika, Afrika, Australien/Ozeanien und die Welt. Die Isobaren bleiben eine konservative Interpolation aus gemessenem Meeresspiegeldruck; unzureichend abgedeckte Gebiete bleiben ohne Linien.
