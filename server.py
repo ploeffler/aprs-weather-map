@@ -28,6 +28,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path in DATA_FILES:
             target = DATA_FILES[path]
+        elif path.startswith("/web/data/") and path[len("/web"):] in DATA_FILES:
+            target = DATA_FILES[path[len("/web"):]]
         elif path == "/web/":
             target = WEB / "index.html"
         elif path.startswith("/web/"):
