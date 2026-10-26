@@ -7,6 +7,7 @@
 <label><input type="checkbox" id="temperature" checked> Temperaturflächen</label>
 <label><input type="checkbox" id="isotherms" checked> Isothermen (5 °C)</label>
 <label><input type="checkbox" id="stations" checked> Wetterstationen</label>
+<label><input type="checkbox" id="wind"> Windpfeile (Messwerte)</label>
 <small id="status">Lade APRS-Daten …</small></header>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -15,11 +16,11 @@ const map=L.map('map').setView([25,0],3);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:18}).addTo(map);
 map.createPane('temperature');map.getPane('temperature').style.zIndex=350;
 map.createPane('isotherms');map.getPane('isotherms').style.zIndex=360;
-const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map);
+const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup();
 const stops=[[-40,'#302a8b'],[-20,'#3468d6'],[-10,'#56b5e9'],[0,'#b5e3f5'],[10,'#cbe989'],[20,'#f8df62'],[30,'#f38a40'],[40,'#bf3636']];
 function color(t){for(let i=1;i<stops.length;i++)if(t<stops[i][0])return stops[i-1][1];return stops[stops.length-1][1]}
 function escapeHtml(x){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points]]){
+for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points],['wind',winds]]){
  document.getElementById(id).addEventListener('change',e=>e.target.checked?layer.addTo(map):map.removeLayer(layer));
 }
 const legend=L.control({position:'bottomright'});
@@ -29,13 +30,35 @@ Promise.all([
  fetch('../data/latest.json').then(r=>{if(!r.ok)throw Error('Stationsdaten fehlen');return r.json()}),
  fetch('../data/temperature.geojson').then(r=>{if(!r.ok)throw Error('Temperaturkarte noch nicht erzeugt');return r.json()})
 ]).then(([data,geo])=>{
- let count=0;
+ let count=0, windCount=0;
  for(const s of data.stations||[]){
   if(!Number.isFinite(s.latitude)||!Number.isFinite(s.longitude))continue;
   const details=Object.entries(s.weather||{}).map(([k,v])=>'<div>'+escapeHtml(k)+': '+escapeHtml(v)+'</div>').join('');
   L.circleMarker([s.latitude,s.longitude],{radius:4,color:'#124d83',weight:1,fillColor:'#ffffff',fillOpacity:.9})
   .bindPopup('<b>'+escapeHtml(s.callsign)+'</b><div>Quelle: '+escapeHtml(s.source||'APRS')+'</div><div>Messzeit: '+escapeHtml(s.observed_at||'nicht verifiziert')+'</div><div>'+escapeHtml(s.received_at)+'</div>'+details).addTo(points);
   count++;
+  const w=s.weather||{};
+  if(Number.isFinite(w.wind_speed)&&Number.isFinite(w.wind_direction)&&w.wind_speed>=0&&w.wind_direction>=0&&w.wind_direction<=360){
+   // Meteorological direction indicates where wind comes FROM.
+   // Arrow points downwind; no interpolation or inferred positions.
+   const toward=(w.wind_direction+180)%360;
+   const rad=toward*Math.PI/180;
+   const speed=w.wind_speed;
+   const length=Math.max(9,Math.min(29,9+speed*1.4));
+   const dx=Math.sin(rad)*length,dy=-Math.cos(rad)*length;
+   const wing=5, angle=.48;
+   const left=toward*Math.PI/180+Math.PI-angle;
+   const right=toward*Math.PI/180+Math.PI+angle;
+   const x1=dx+Math.sin(left)*wing,y1=dy-Math.cos(left)*wing;
+   const x2=dx+Math.sin(right)*wing,y2=dy-Math.cos(right)*wing;
+   const hue=speed>=20?'#bb3030':speed>=10?'#d17818':'#1764a0';
+   const svg='<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="-32 -32 64 64"><path d="M0 0 L'+dx.toFixed(1)+' '+dy.toFixed(1)+' M'+x1.toFixed(1)+' '+y1.toFixed(1)+' L'+dx.toFixed(1)+' '+dy.toFixed(1)+' L'+x2.toFixed(1)+' '+y2.toFixed(1)+'" fill="none" stroke="'+hue+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle r="2.2" fill="'+hue+'"/></svg>';
+   const icon=L.divIcon({html:svg,className:'',iconSize:[64,64],iconAnchor:[32,32]});
+   L.marker([s.latitude,s.longitude],{icon,keyboard:false}).bindPopup(
+    '<b>'+escapeHtml(s.callsign)+'</b><div>Quelle: '+escapeHtml(s.source||'APRS')+'</div><div>Wind: '+speed.toFixed(1)+' m/s aus '+w.wind_direction.toFixed(0)+'°</div><div>Messzeit: '+escapeHtml(s.observed_at||'nicht verifiziert')+'</div>'
+   ).addTo(winds);
+   windCount++;
+  }
  }
  for(const feature of geo.features||[]){
   const props=feature.properties||{};
@@ -46,6 +69,6 @@ Promise.all([
    .bindPopup(escapeHtml(props.celsius)+' °C – interpolierte Isotherme').addTo(lines);
   }
  }
- document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+data.generated_at+' · APRS-Stichprobe';
+ document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+data.generated_at+' · APRS-Stichprobe';
 }).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
