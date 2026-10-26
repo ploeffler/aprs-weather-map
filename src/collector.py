@@ -10,6 +10,7 @@ from quality import normalize
 from archive import append_observations
 from metar import fetch_metar
 from dedup import deduplicate
+from cwop import classify_aprs_station
 
 def collect(duration=180, output="data/latest.json", enable_metar=True):
     stations = {}
@@ -38,10 +39,10 @@ def collect(duration=180, output="data/latest.json", enable_metar=True):
         if observation is None:
             stats["rejected"] += 1
             return
-        # CWOP uses APRS-IS transport; only explicitly identifiable CW IDs
-        # are labeled CWOP. Other callsigns retain the APRS label.
-        call = observation["callsign"].upper()
-        source = "CWOP" if call.startswith("CW") and call[2:].isdigit() else "APRS"
+        # Callsign patterns identify CWOP candidates, not verified membership.
+        source, classification = classify_aprs_station(observation["callsign"])
+        if classification:
+            observation["source_classification"] = classification
         observation["source"] = source
         observation["station_id"] = observation["callsign"]
         observation["observed_at"] = None  # APRS packet time not verified
