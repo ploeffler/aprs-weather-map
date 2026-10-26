@@ -2,24 +2,50 @@
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>APRS Weather Map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>body{margin:0;font-family:system-ui;background:#111827;color:white}header{padding:12px 20px}#map{height:calc(100vh - 100px)}small{color:#b6c2d2}</style></head>
-<body><header><strong>APRS Weather Map</strong><div><small id="status">Lade Stationsdaten …</small></div></header>
+<style>body{margin:0;font-family:system-ui;background:#111827;color:white}header{padding:10px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}#map{height:calc(100vh - 110px);min-height:420px}small{color:#b6c2d2}label{white-space:nowrap}input{accent-color:#1595df}.legend{background:white;color:#111;padding:9px;border-radius:5px;font:12px system-ui}.swatches{display:flex;margin-top:5px}.swatches span{width:27px;height:12px}</style></head>
+<body><header><strong>APRS Weather Map</strong>
+<label><input type="checkbox" id="temperature" checked> Temperaturflächen</label>
+<label><input type="checkbox" id="isotherms" checked> Isothermen (5 °C)</label>
+<label><input type="checkbox" id="stations" checked> Wetterstationen</label>
+<small id="status">Lade APRS-Daten …</small></header>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const map=L.map('map').setView([25,0],3);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:18}).addTo(map);
-fetch('../data/latest.json').then(r=>{if(!r.ok)throw Error('Keine Daten');return r.json()}).then(data=>{
-let count=0;
-for(const s of data.stations||[]){
-if(!Number.isFinite(s.latitude)||!Number.isFinite(s.longitude))continue;
-const wx=s.weather||{};
-const details=Object.entries(wx).map(([k,v])=>'<div>'+escapeHtml(k)+': '+escapeHtml(String(v))+'</div>').join('');
-L.circleMarker([s.latitude,s.longitude],{radius:5,color:'#087ac7',fillOpacity:.75})
-.bindPopup('<b>'+escapeHtml(s.callsign)+'</b><div>'+escapeHtml(s.received_at)+'</div>'+details).addTo(map);
-count++;
+map.createPane('temperature');map.getPane('temperature').style.zIndex=350;
+map.createPane('isotherms');map.getPane('isotherms').style.zIndex=360;
+const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map);
+const stops=[[-40,'#302a8b'],[-20,'#3468d6'],[-10,'#56b5e9'],[0,'#b5e3f5'],[10,'#cbe989'],[20,'#f8df62'],[30,'#f38a40'],[40,'#bf3636']];
+function color(t){for(let i=1;i<stops.length;i++)if(t<stops[i][0])return stops[i-1][1];return stops[stops.length-1][1]}
+function escapeHtml(x){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points]]){
+ document.getElementById(id).addEventListener('change',e=>e.target.checked?layer.addTo(map):map.removeLayer(layer));
 }
-document.getElementById('status').textContent=count+' Wetterstationen · Erfassung: '+data.generated_at+' · Momentaufnahme, keine lückenlose Abdeckung';
-}).catch(e=>document.getElementById('status').textContent='Daten nicht verfügbar: '+e.message);
-function escapeHtml(x){return x.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const legend=L.control({position:'bottomright'});
+legend.onAdd=()=>{const el=L.DomUtil.create('div','legend');el.innerHTML='<b>Temperatur °C</b><div class="swatches">'+stops.map(([v,c])=>'<span style="background:'+c+'" title="'+v+' °C"></span>').join('')+'</div><div>−40 −20 −10 0 10 20 30 40+</div><div>Weiß = keine belastbare Abdeckung</div>';return el};
+legend.addTo(map);
+Promise.all([
+ fetch('../data/latest.json').then(r=>{if(!r.ok)throw Error('Stationsdaten fehlen');return r.json()}),
+ fetch('../data/temperature.geojson').then(r=>{if(!r.ok)throw Error('Temperaturkarte noch nicht erzeugt');return r.json()})
+]).then(([data,geo])=>{
+ let count=0;
+ for(const s of data.stations||[]){
+  if(!Number.isFinite(s.latitude)||!Number.isFinite(s.longitude))continue;
+  const details=Object.entries(s.weather||{}).map(([k,v])=>'<div>'+escapeHtml(k)+': '+escapeHtml(v)+'</div>').join('');
+  L.circleMarker([s.latitude,s.longitude],{radius:4,color:'#124d83',weight:1,fillColor:'#ffffff',fillOpacity:.9})
+  .bindPopup('<b>'+escapeHtml(s.callsign)+'</b><div>'+escapeHtml(s.received_at)+'</div>'+details).addTo(points);
+  count++;
+ }
+ for(const feature of geo.features||[]){
+  const props=feature.properties||{};
+  if(props.kind==='cell'){
+   L.geoJSON(feature,{pane:'temperature',style:{color:color(props.celsius),fillColor:color(props.celsius),weight:0,fillOpacity:.58,interactive:false}}).addTo(cells);
+  }else if(props.kind==='isotherm'){
+   L.geoJSON(feature,{pane:'isotherms',style:{color:'#343434',weight:1.4,opacity:.85}})
+   .bindPopup(escapeHtml(props.celsius)+' °C – interpolierte Isotherme').addTo(lines);
+  }
+ }
+ document.getElementById('status').textContent=count+' Stationen · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+data.generated_at+' · APRS-Stichprobe';
+}).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
