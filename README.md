@@ -1,13 +1,13 @@
 # APRS Weather Map
 
-Weltweite Wetterkarte ausschließlich aus APRS-Wetterstationsmeldungen.
+Weltweite Wetterkarte aus realen Stationsmeldungen von APRS, CWOP und METAR; keine Wettermodelle oder Vorhersagedaten.
 
 ## Version 0.1 (Grundgerüst)
 - APRS-IS-Liveempfang mit Filter `t/w`
 - GitHub Actions alle 15 Minuten (Best-Effort, keine garantierte Ausführung)
 - Drei Minuten Empfang je Lauf: Stichprobe, keine lückenlose Erfassung
 - Leaflet-Weltkarte mit Stationsmarkierungen und Wetter-Rohwerten
-- Keine externen meteorologischen Datenquellen
+- METAR-Flughafenbeobachtungen werden zusätzlich über AviationWeather eingelesen (Best-Effort)
 
 ## Einrichtung
 1. Repository privat belassen.
@@ -47,3 +47,13 @@ python server.py
 Danach im Browser `http://127.0.0.1:8000/` öffnen. Der Webserver liefert die interaktive Karte und die bereits vorhandenen Dateien unter `data/` aus. Es werden keine zusätzlichen Python-Pakete für den Webserver benötigt. Optional: `python server.py --port 8080`; für den Zugriff aus dem lokalen Netzwerk ausdrücklich `python server.py --host 0.0.0.0` verwenden (Firewall und Zugriffsschutz beachten).
 
 **Wichtig:** Der Mini-Webserver zeigt lokal gespeicherte Ergebnisse an; er führt nicht automatisch einen APRS-IS-Empfang durch. Die Karte lädt Leaflet und OpenStreetMap-Kacheln weiterhin über das Internet. Da der Server das gesamte Projektverzeichnis bereitstellt, sollte er **nicht öffentlich exponiert** werden; insbesondere dürfen keine Secrets im Projektverzeichnis abgelegt werden. Eine spätere Version soll die Auslieferung auf `web/` und ausgewählte Datenendpunkte beschränken.
+
+## Drei Stationsdatenquellen (v0.4)
+
+- **APRS:** Wetterpakete vom APRS-IS-Server mit dem serverseitigen Filter `t/w`.
+- **CWOP:** CWOP wird ebenfalls über APRS-IS transportiert und ist deshalb keine unabhängige zweite Netzwerkverbindung. Explizit als `CW` gefolgt von Ziffern identifizierbare Kennungen werden als `CWOP` markiert. Weitere CWOP-Kennungen können vorläufig unter `APRS` verbleiben; eine vollständige Registrierungserkennung steht aus.
+- **METAR:** Aktuelle reale Flughafenbeobachtungen über die JSON-Schnittstelle von AviationWeather (`https://aviationweather.gov/api/data/metar?format=json&hours=2`). Beobachtungen älter als zwei Stunden werden verworfen. Temperatur °C, Wind Knoten → m/s; relative Feuchte wird nur aus gemessener Temperatur und Taupunkt abgeleitet. Altimeter-Einstellungen werden **nicht** als Meereshöhendruck ausgegeben. Die METAR-Schnittstelle benötigt keine im Repository hinterlegten Zugangsdaten. Falls sie nicht erreichbar ist, läuft die APRS/CWOP-Erfassung weiter.
+
+Alle Quellen erhalten `source`, `station_id` und soweit zuverlässig vorhanden `observed_at`. Bei APRS/CWOP ist derzeit nur `received_at` gesichert. Quellen sind in `data/latest.json → sources` getrennt ausgewiesen. Eine systemübergreifende Dublettenerkennung, ein verbindlicher Lizenz-/Nutzungsbedingungencheck sowie METAR-Feld- und Stationsabdeckungs-Tests stehen noch aus. Die Temperaturkarte interpoliert die zusammengeführten Beobachtungen ohne externe Modellwerte.
+
+METAR-Import kann lokal mit `python src/collector.py --no-metar` deaktiviert werden. Der Abruf ist im Collector standardmäßig aktiv. **Nicht** für die operative Luftfahrt verwenden.
