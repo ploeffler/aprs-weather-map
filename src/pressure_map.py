@@ -19,6 +19,39 @@ def unit_vectors(lat, lon):
     a, b = np.radians(lat), np.radians(lon)
     return np.column_stack((np.cos(a) * np.cos(b), np.cos(a) * np.sin(b), np.sin(a)))
 
+def pressure_centers(grid, xs, ys, min_prominence=1.5, min_spacing_km=500):
+    """Conservative local extrema; require a fully observed 3x3 neighbourhood."""
+    candidates = []
+    for j in range(1, grid.shape[0] - 1):
+        for i in range(1, grid.shape[1] - 1):
+            window = grid[j-1:j+2, i-1:i+2]
+            if not np.isfinite(window).all():
+                continue
+            center = float(grid[j, i])
+            neighbours = np.delete(window.ravel(), 4)
+            if center > neighbours.max() and center - float(neighbours.min()) >= min_prominence:
+                kind = "high"
+            elif center < neighbours.min() and float(neighbours.max()) - center >= min_prominence:
+                kind = "low"
+            else:
+                continue
+            candidates.append((abs(center - float(np.mean(neighbours))), kind, center, float(ys[j]), float(xs[i])))
+    selected = []
+    for _, kind, value, lat, lon in sorted(candidates, reverse=True):
+        if any(existing["properties"]["kind"] == kind and
+               2 * EARTH_KM * np.arcsin(min(1.0, np.linalg.norm(
+                   unit_vectors(np.array([lat]), np.array([lon]))[0] -
+                   unit_vectors(np.array([existing["geometry"]["coordinates"][1]]),
+                                np.array([existing["geometry"]["coordinates"][0]]))[0]) / 2))
+               < min_spacing_km for existing in selected):
+            continue
+        selected.append({"type": "Feature", "properties": {
+            "kind": kind, "hpa": round(value, 1), "method": "local_grid_extremum",
+            "estimated": True},
+            "geometry": {"type": "Point", "coordinates": [lon, lat]}})
+    return selected
+
+
 def build(source="data/latest.json", destination="data/pressure.geojson"):
     data = json.loads(Path(source).read_text(encoding="utf-8"))
     rows = [s for s in data.get("stations", [])
@@ -61,6 +94,7 @@ def build(source="data/latest.json", destination="data/pressure.geojson"):
                                      [float(xs[i+1]), float(ys[j+1])],
                                      [float(xs[i]), float(ys[j+1])],
                                      [float(xs[i]), float(ys[j])]]]} })
+        features.extend(pressure_centers(grid, xs, ys))
         masked = np.ma.masked_invalid(grid)
         if masked.count() >= 4:
             contour = contour_generator(x=xs, y=ys, z=masked, name="serial")
