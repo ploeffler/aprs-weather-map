@@ -18,6 +18,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
       - name: Collect APRS-IS weather packets
         env:
           APRS_CALLSIGN: ${{ vars.APRS_CALLSIGN }}
