@@ -2,7 +2,7 @@
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>APRS Weather Map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>body{margin:0;font-family:system-ui;background:#111827;color:white}header{padding:10px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}#map{height:calc(100vh - 110px);min-height:420px}small{color:#b6c2d2}label{white-space:nowrap}input{accent-color:#1595df}.legend{background:white;color:#111;padding:9px;border-radius:5px;font:12px system-ui}.swatches{display:flex;margin-top:5px}.swatches span{width:27px;height:12px}</style></head>
+<style>body{margin:0;font-family:system-ui;background:#111827;color:white}header{padding:10px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}#map{height:calc(100vh - 110px);min-height:420px}small{color:#b6c2d2}label{white-space:nowrap}.region-zoom{display:flex;gap:5px;flex-wrap:wrap}.region-zoom button{background:#243b55;border:1px solid #64829c;color:white;border-radius:5px;padding:5px 9px;cursor:pointer}.region-zoom button:hover,.region-zoom button:focus-visible{background:#316a91}.isobar-label{background:rgba(255,255,255,.85);border:1px solid #642477;border-radius:4px;color:#642477;font:bold 11px system-ui;text-align:center;white-space:nowrap;box-shadow:0 1px 3px #0004}input{accent-color:#1595df}.legend{background:white;color:#111;padding:9px;border-radius:5px;font:12px system-ui}.swatches{display:flex;margin-top:5px}.swatches span{width:27px;height:12px}</style></head>
 <body><header><strong>APRS Weather Map</strong>
 <label><input type="checkbox" id="temperature" checked> Temperaturflächen</label>
 <label><input type="checkbox" id="isotherms" checked> Isothermen (5 °C)</label>
@@ -12,23 +12,40 @@
 <label><input type="checkbox" id="rain"> Niederschlag</label>
 <select id="rain-period" aria-label="Niederschlagszeitraum"><option value="rain_1h">Letzte Stunde</option><option value="rain_24h">Letzte 24 Stunden</option><option value="rain_since_midnight">Seit Mitternacht</option></select>
 <label><input type="checkbox" id="wind"> Windpfeile (Messwerte)</label>
+<nav class="region-zoom" aria-label="Schnellzoom für Großwetterlagen"><button type="button" data-region="europe">Europa / Nordatlantik</button><button type="button" data-region="northamerica">Nordamerika</button><button type="button" data-region="asia">Ostasien / Pazifik</button><button type="button" data-region="southamerica">Südamerika</button><button type="button" data-region="africa">Afrika</button><button type="button" data-region="oceania">Australien / Ozeanien</button><button type="button" data-region="world">Welt</button></nav>
 <small id="status">Lade APRS-Daten …</small></header>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const map=L.map('map').setView([25,0],3);
+const regions={
+ europe:[[25,-65],[75,55]],
+ northamerica:[[15,-170],[75,-50]],
+ asia:[[5,85],[65,180]],
+ southamerica:[[-60,-90],[15,-30]],
+ africa:[[-38,-22],[40,55]],
+ oceania:[[-50,105],[5,180]],
+ world:[[-65,-180],[80,180]]
+};
+document.querySelectorAll('[data-region]').forEach(button=>{
+ button.addEventListener('click',()=>map.fitBounds(regions[button.dataset.region],{padding:[15,15]}));
+});
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:18}).addTo(map);
 map.createPane('temperature');map.getPane('temperature').style.zIndex=350;
 map.createPane('isotherms');map.getPane('isotherms').style.zIndex=360;
 map.createPane('pressure');map.getPane('pressure').style.zIndex=345;
 map.createPane('isobars');map.getPane('isobars').style.zIndex=365;
+const isobarLabels=L.layerGroup();
 const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup(),pressures=L.layerGroup(),isobars=L.layerGroup(),rain=L.layerGroup();
 let rainStations=[];
 const stops=[[-40,'#302a8b'],[-20,'#3468d6'],[-10,'#56b5e9'],[0,'#b5e3f5'],[10,'#cbe989'],[20,'#f8df62'],[30,'#f38a40'],[40,'#bf3636']];
 function color(t){for(let i=1;i<stops.length;i++)if(t<stops[i][0])return stops[i-1][1];return stops[stops.length-1][1]}
 function escapeHtml(x){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points],['wind',winds],['pressure',pressures],['isobars',isobars],['rain',rain]]){
- document.getElementById(id).addEventListener('change',e=>e.target.checked?layer.addTo(map):map.removeLayer(layer));
+ document.getElementById(id).addEventListener('change',e=>{
+  if(e.target.checked){layer.addTo(map);if(id==='isobars')isobarLabels.addTo(map);}
+  else{map.removeLayer(layer);if(id==='isobars')map.removeLayer(isobarLabels);}
+ });
 }
 function rainColor(mm){return mm>=50?'#7b1fa2':mm>=20?'#d32f2f':mm>=10?'#f57c00':mm>=2?'#1976d2':'#4caf50'}
 function renderRain(){
@@ -92,6 +109,9 @@ Promise.all([
    .bindPopup(escapeHtml(props.celsius)+' °C – interpolierte Isotherme').addTo(lines);
   }
  }
+ // Label selected isobar lines with their observed-data-derived hPa level.
+ // At most one label per pressure level in the current geographic window.
+ const isobarCandidates=[];
  for(const feature of pressureGeo.features||[]){
   const props=feature.properties||{};
   if(props.kind==='cell'){
@@ -101,11 +121,46 @@ Promise.all([
   }else if(props.kind==='isobar'){
    L.geoJSON(feature,{pane:'isobars',style:{color:'#642477',weight:1.8,opacity:.9}})
     .bindPopup(escapeHtml(props.hpa)+' hPa – interpolierte Isobare (Meeresspiegeldruck)').addTo(isobars);
+   if(Number.isFinite(props.hpa) && feature.geometry?.type==='LineString'){
+    const coords=feature.geometry.coordinates||[];
+    if(coords.length>2){
+     let total=0;const segments=[];
+     for(let i=1;i<coords.length;i++){
+      const a=coords[i-1],b=coords[i];
+      const dx=(b[0]-a[0])*Math.cos((a[1]+b[1])*Math.PI/360),dy=b[1]-a[1];
+      const distance=Math.hypot(dx,dy);
+      segments.push(distance);total+=distance;
+     }
+     let half=total/2,idx=1;
+     while(idx<segments.length && half>segments[idx-1]){half-=segments[idx-1];idx++;}
+     const a=coords[idx-1],b=coords[idx],ratio=segments[idx-1]>0?half/segments[idx-1]:0;
+     isobarCandidates.push({hpa:props.hpa,lat:a[1]+(b[1]-a[1])*ratio,lon:a[0]+(b[0]-a[0])*ratio,length:total});
+    }
+   }
   }
  }
  // Focus on the actual measured coverage instead of an arbitrary ocean-centred view.
  const bounds=L.featureGroup(cells.getLayers()).getBounds();
  if(bounds && bounds.isValid()) map.fitBounds(bounds,{padding:[24,24],maxZoom:5});
+ function updateIsobarLabels(){
+  isobarLabels.clearLayers();
+  if(!map.hasLayer(isobars))return;
+  const bounds=map.getBounds(),seen=new Set();
+  const candidates=isobarCandidates.filter(c=>bounds.contains([c.lat,c.lon])).sort((a,b)=>b.length-a.length);
+  const placed=[];
+  for(const candidate of candidates){
+   if(seen.has(candidate.hpa))continue;
+   const pt=map.latLngToContainerPoint([candidate.lat,candidate.lon]);
+   if(placed.some(p=>Math.hypot(pt.x-p.x,pt.y-p.y)<90))continue;
+   seen.add(candidate.hpa);placed.push(pt);
+   const icon=L.divIcon({className:'isobar-label',html:escapeHtml(candidate.hpa)+' hPa',iconSize:[64,20],iconAnchor:[32,10]});
+   L.marker([candidate.lat,candidate.lon],{icon,interactive:false,keyboard:false}).addTo(isobarLabels);
+   if(placed.length>=18)break;
+  }
+ }
+ map.on('moveend zoomend',updateIsobarLabels);
+ document.getElementById('isobars').addEventListener('change',updateIsobarLabels);
+ updateIsobarLabels();
  document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+(pressureGeo.metadata?.pressure_stations||0)+' mit Meeresspiegeldruck · '+rainStations.filter(s=>Number.isFinite(s.weather?.rain_1h)).length+' mit Stunden-Niederschlag · '+data.generated_at+' · APRS-Stichprobe';
 }).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
