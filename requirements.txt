@@ -1,1 +1,4 @@
 aprslib>=0.7,<1
+numpy>=2,<3
+scipy>=1.14,<2
+contourpy>=1.3,<2
