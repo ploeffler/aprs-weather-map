@@ -1,15 +1,13 @@
-"""Import current airport station observations from AviationWeather METAR JSON.
-
-Only actual reports with coordinates and an observation time are accepted.
-No forecasts, model fields, or inferred values.
-"""
-import json
+"""Read actual worldwide METAR observations from AviationWeather's bulk cache."""
+import csv
+import gzip
+import io
 import math
 from datetime import datetime, timezone, timedelta
 from urllib.request import Request, urlopen
 from quality import normalize
 
-URL = "https://aviationweather.gov/api/data/metar?format=json&hours=2"
+URL = "https://aviationweather.gov/data/cache/metars.cache.csv.gz"
 
 def number(value):
     try:
@@ -19,53 +17,51 @@ def number(value):
         return None
 
 def utc_time(value):
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, timezone.utc)
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
-        except ValueError:
-            return None
-    return None
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
 
-def fetch_metar(timeout=25, max_age_minutes=120):
-    request = Request(URL, headers={"User-Agent": "APRS-Weather-Map/0.4 (weather observation research)", "Accept": "application/json"})
+def fetch_metar(timeout=40, max_age_minutes=120):
+    request = Request(URL, headers={"User-Agent": "APRS-Weather-Map/0.4 (observational weather research)"})
     with urlopen(request, timeout=timeout) as response:
-        reports = json.load(response)
-    if not isinstance(reports, list):
-        raise ValueError("Unexpected METAR response")
+        payload = response.read()
+    raw = gzip.decompress(payload).decode("utf-8-sig")
+    # NOAA cache includes a comment and record-count preamble.
+    rows = csv.DictReader(line for line in io.StringIO(raw) if not line.startswith("#") and "," in line)
     now = datetime.now(timezone.utc)
-    result = []
-    for report in reports:
-        if not isinstance(report, dict):
-            continue
-        observed = utc_time(report.get("obsTime") or report.get("reportTime"))
+    latest = {}
+    for report in rows:
+        observed = utc_time(report.get("observation_time"))
         if observed is None or not now - timedelta(minutes=max_age_minutes) <= observed <= now + timedelta(minutes=5):
             continue
-        identifier = report.get("icaoId")
-        if not isinstance(identifier, str) or not identifier:
+        identifier = (report.get("station_id") or "").strip()
+        if not identifier:
             continue
         wx = {}
-        mapping = {"temp": "temperature", "wdir": "wind_direction", "wspd": "wind_speed",
-                   "wgst": "wind_gust"}
+        mapping = {"temp_c": "temperature", "wind_dir_degrees": "wind_direction",
+                   "wind_speed_kt": "wind_speed", "wind_gust_kt": "wind_gust"}
         for source, target in mapping.items():
             value = number(report.get(source))
             if value is not None:
-                # METAR wind speeds and gusts are reported in knots.
                 wx[target] = value * 0.514444 if target in ("wind_speed", "wind_gust") else value
-        # altim is an altimeter setting, not necessarily sea-level pressure.
-        # Do not treat it as a verified MSL pressure.
-        temp, dew = number(report.get("temp")), number(report.get("dewp"))
+        temp, dew = number(report.get("temp_c")), number(report.get("dewpoint_c"))
         if temp is not None and dew is not None and dew <= temp:
-            # Magnus approximation; only if both actual readings exist.
-            wx["humidity"] = max(0, min(100, 100 * math.exp((17.625 * dew)/(243.04 + dew) - (17.625 * temp)/(243.04 + temp))))
-        item = {"from": identifier, "latitude": number(report.get("lat")),
-                "longitude": number(report.get("lon")), "weather": wx}
+            wx["humidity"] = max(0, min(100, 100 * math.exp(
+                17.625 * dew / (243.04 + dew) - 17.625 * temp / (243.04 + temp))))
+        slp = number(report.get("sea_level_pressure_mb"))
+        if slp is not None:
+            wx["pressure"] = slp
+        item = {"from": identifier, "latitude": number(report.get("latitude")),
+                "longitude": number(report.get("longitude")), "weather": wx}
         normalized = normalize(item, now.isoformat())
         if normalized is None:
             continue
         normalized.update({"source": "METAR", "station_id": identifier,
                            "observed_at": observed.isoformat(),
-                           "pressure_reference": None})
-        result.append(normalized)
-    return result
+                           "pressure_reference": "sea_level" if "pressure" in normalized["weather"] else None})
+        if identifier not in latest or observed > utc_time(latest[identifier]["observed_at"]):
+            latest[identifier] = normalized
+    return list(latest.values())
