@@ -2,7 +2,7 @@
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>APRS Weather Map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>body{margin:0;font-family:system-ui;background:#111827;color:white}header{padding:10px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}#map{height:calc(100vh - 110px);min-height:420px}small{color:#b6c2d2}label{white-space:nowrap}.region-zoom{display:flex;gap:5px;flex-wrap:wrap}.region-zoom button{background:#243b55;border:1px solid #64829c;color:white;border-radius:5px;padding:5px 9px;cursor:pointer}.region-zoom button:hover,.region-zoom button:focus-visible{background:#316a91}.isobar-label{background:rgba(255,255,255,.85);border:1px solid #642477;border-radius:4px;color:#642477;font:bold 11px system-ui;text-align:center;white-space:nowrap;box-shadow:0 1px 3px #0004}input{accent-color:#1595df}.legend{background:white;color:#111;padding:9px;border-radius:5px;font:12px system-ui}.swatches{display:flex;margin-top:5px}.swatches span{width:27px;height:12px}</style></head>
+<style>body{margin:0;font-family:system-ui;background:#111827;color:white}header{padding:10px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}#map{height:calc(100vh - 110px);min-height:420px}small{color:#b6c2d2}label{white-space:nowrap}.region-zoom{display:flex;gap:5px;flex-wrap:wrap}.region-zoom button{background:#243b55;border:1px solid #64829c;color:white;border-radius:5px;padding:5px 9px;cursor:pointer}.region-zoom button:hover,.region-zoom button:focus-visible{background:#316a91}.pressure-center{background:transparent;border:0;text-align:center;font:bold 27px system-ui;text-shadow:0 1px 2px white,0 -1px 2px white}.pressure-center.high{color:#c52d32}.pressure-center.low{color:#2266c0}.isobar-label{background:rgba(255,255,255,.85);border:1px solid #642477;border-radius:4px;color:#642477;font:bold 11px system-ui;text-align:center;white-space:nowrap;box-shadow:0 1px 3px #0004}input{accent-color:#1595df}.legend{background:white;color:#111;padding:9px;border-radius:5px;font:12px system-ui}.swatches{display:flex;margin-top:5px}.swatches span{width:27px;height:12px}</style></head>
 <body><header><strong>APRS Weather Map</strong>
 <label><input type="checkbox" id="temperature" checked> Temperaturflächen</label>
 <label><input type="checkbox" id="isotherms" checked> Isothermen (5 °C)</label>
@@ -35,7 +35,7 @@ map.createPane('temperature');map.getPane('temperature').style.zIndex=350;
 map.createPane('isotherms');map.getPane('isotherms').style.zIndex=360;
 map.createPane('pressure');map.getPane('pressure').style.zIndex=345;
 map.createPane('isobars');map.getPane('isobars').style.zIndex=365;
-const isobarLabels=L.layerGroup();
+const isobarLabels=L.layerGroup(),pressureCenters=L.layerGroup();
 const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup(),pressures=L.layerGroup(),isobars=L.layerGroup(),rain=L.layerGroup();
 let rainStations=[];
 const stops=[[-40,'#302a8b'],[-20,'#3468d6'],[-10,'#56b5e9'],[0,'#b5e3f5'],[10,'#cbe989'],[20,'#f8df62'],[30,'#f38a40'],[40,'#bf3636']];
@@ -43,8 +43,8 @@ function color(t){for(let i=1;i<stops.length;i++)if(t<stops[i][0])return stops[i
 function escapeHtml(x){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points],['wind',winds],['pressure',pressures],['isobars',isobars],['rain',rain]]){
  document.getElementById(id).addEventListener('change',e=>{
-  if(e.target.checked){layer.addTo(map);if(id==='isobars')isobarLabels.addTo(map);}
-  else{map.removeLayer(layer);if(id==='isobars')map.removeLayer(isobarLabels);}
+  if(e.target.checked){layer.addTo(map);if(id==='isobars'){isobarLabels.addTo(map);pressureCenters.addTo(map);}}
+  else{map.removeLayer(layer);if(id==='isobars'){map.removeLayer(isobarLabels);map.removeLayer(pressureCenters);}}
  });
 }
 function rainColor(mm){return mm>=50?'#7b1fa2':mm>=20?'#d32f2f':mm>=10?'#f57c00':mm>=2?'#1976d2':'#4caf50'}
@@ -114,7 +114,12 @@ Promise.all([
  const isobarCandidates=[];
  for(const feature of pressureGeo.features||[]){
   const props=feature.properties||{};
-  if(props.kind==='cell'){
+  if((props.kind==='high'||props.kind==='low') && feature.geometry?.type==='Point'){
+   const [lon,lat]=feature.geometry.coordinates;
+   const high=props.kind==='high';
+   const icon=L.divIcon({className:'pressure-center '+(high?'high':'low'),html:high?'H':'T',iconSize:[30,34],iconAnchor:[15,17]});
+   L.marker([lat,lon],{icon}).bindPopup((high?'Lokales Hochdruckzentrum':'Lokales Tiefdruckzentrum')+' · '+escapeHtml(props.hpa)+' hPa<br>Aus Messwerten interpoliert; vorläufige Lokalisierung').addTo(pressureCenters);
+  }else if(props.kind==='cell'){
    const h=props.hpa;
    const shade=h<995?'#2455a4':h<1005?'#5d9bcb':h<1015?'#b3d6da':h<1025?'#e8cc81':'#c77e46';
    L.geoJSON(feature,{pane:'pressure',style:{color:shade,fillColor:shade,weight:0,fillOpacity:.48,interactive:false}}).addTo(pressures);
