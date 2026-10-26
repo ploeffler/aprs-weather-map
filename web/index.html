@@ -9,6 +9,8 @@
 <label><input type="checkbox" id="stations" checked> Wetterstationen</label>
 <label><input type="checkbox" id="pressure"> Luftdruckflächen</label>
 <label><input type="checkbox" id="isobars"> Isobaren (5 hPa)</label>
+<label><input type="checkbox" id="rain"> Niederschlag</label>
+<select id="rain-period" aria-label="Niederschlagszeitraum"><option value="rain_1h">Letzte Stunde</option><option value="rain_24h">Letzte 24 Stunden</option><option value="rain_since_midnight">Seit Mitternacht</option></select>
 <label><input type="checkbox" id="wind"> Windpfeile (Messwerte)</label>
 <small id="status">Lade APRS-Daten …</small></header>
 <div id="map"></div>
@@ -20,13 +22,27 @@ map.createPane('temperature');map.getPane('temperature').style.zIndex=350;
 map.createPane('isotherms');map.getPane('isotherms').style.zIndex=360;
 map.createPane('pressure');map.getPane('pressure').style.zIndex=345;
 map.createPane('isobars');map.getPane('isobars').style.zIndex=365;
-const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup(),pressures=L.layerGroup(),isobars=L.layerGroup();
+const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup(),pressures=L.layerGroup(),isobars=L.layerGroup(),rain=L.layerGroup();
+let rainStations=[];
 const stops=[[-40,'#302a8b'],[-20,'#3468d6'],[-10,'#56b5e9'],[0,'#b5e3f5'],[10,'#cbe989'],[20,'#f8df62'],[30,'#f38a40'],[40,'#bf3636']];
 function color(t){for(let i=1;i<stops.length;i++)if(t<stops[i][0])return stops[i-1][1];return stops[stops.length-1][1]}
 function escapeHtml(x){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points],['wind',winds],['pressure',pressures],['isobars',isobars]]){
+for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points],['wind',winds],['pressure',pressures],['isobars',isobars],['rain',rain]]){
  document.getElementById(id).addEventListener('change',e=>e.target.checked?layer.addTo(map):map.removeLayer(layer));
 }
+function rainColor(mm){return mm>=50?'#7b1fa2':mm>=20?'#d32f2f':mm>=10?'#f57c00':mm>=2?'#1976d2':'#4caf50'}
+function renderRain(){
+ rain.clearLayers();
+ const period=document.getElementById('rain-period').value;
+ for(const s of rainStations){
+  const mm=s.weather?.[period];
+  if(!Number.isFinite(mm)||mm<0)continue;
+  const radius=Math.max(4,Math.min(16,4+Math.sqrt(mm)*1.6));
+  L.circleMarker([s.latitude,s.longitude],{radius,color:rainColor(mm),weight:1.5,fillColor:rainColor(mm),fillOpacity:.65})
+   .bindPopup('<b>'+escapeHtml(s.callsign)+'</b><div>'+escapeHtml(document.getElementById('rain-period').selectedOptions[0].textContent)+': '+mm.toFixed(1)+' mm</div><div>Quelle: '+escapeHtml(s.source||'APRS')+'</div><div>Messzeit: '+escapeHtml(s.observed_at||'nicht verifiziert')+'</div>').addTo(rain);
+ }
+}
+document.getElementById('rain-period').addEventListener('change',renderRain);
 const legend=L.control({position:'bottomright'});
 legend.onAdd=()=>{const el=L.DomUtil.create('div','legend');el.innerHTML='<b>Temperatur °C</b><div class="swatches">'+stops.map(([v,c])=>'<span style="background:'+c+'" title="'+v+' °C"></span>').join('')+'</div><div>−40 −20 −10 0 10 20 30 40+</div><div>Weiß = keine belastbare Abdeckung</div>';return el};
 legend.addTo(map);
@@ -35,6 +51,8 @@ Promise.all([
  fetch('../data/temperature.geojson').then(r=>{if(!r.ok)throw Error('Temperaturkarte noch nicht erzeugt');return r.json()}),
  fetch('../data/pressure.geojson').then(r=>{if(!r.ok)throw Error('Luftdruckkarte noch nicht erzeugt');return r.json()})
 ]).then(([data,geo,pressureGeo])=>{
+ rainStations=(data.stations||[]).filter(s=>Number.isFinite(s.latitude)&&Number.isFinite(s.longitude));
+ renderRain();
  let count=0, windCount=0;
  for(const s of data.stations||[]){
   if(!Number.isFinite(s.latitude)||!Number.isFinite(s.longitude))continue;
@@ -85,6 +103,6 @@ Promise.all([
     .bindPopup(escapeHtml(props.hpa)+' hPa – interpolierte Isobare (Meeresspiegeldruck)').addTo(isobars);
   }
  }
- document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+(pressureGeo.metadata?.pressure_stations||0)+' mit Meeresspiegeldruck · '+data.generated_at+' · APRS-Stichprobe';
+ document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+(pressureGeo.metadata?.pressure_stations||0)+' mit Meeresspiegeldruck · '+rainStations.filter(s=>Number.isFinite(s.weather?.rain_1h)).length+' mit Stunden-Niederschlag · '+data.generated_at+' · APRS-Stichprobe';
 }).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
