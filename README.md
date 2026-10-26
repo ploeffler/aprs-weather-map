@@ -63,3 +63,9 @@ METAR-Import kann lokal mit `python src/collector.py --no-metar` deaktiviert wer
 Vor der Kartenerstellung werden Stationsdatensätze nur bei **identischer Stationskennung** (ohne APRS-SSID) und maximal 1 km Positionsabweichung zusammengeführt. Verschiedene Stationen am selben Ort bleiben erhalten. Bei Übereinstimmung wird die Meldung mit verifizierter Beobachtungszeit bevorzugt; Herkunftsquellen werden in `also_reported_by` festgehalten. Es werden keine Einzelmessfelder aus verschiedenen Meldungen vermischt. `cross_source_duplicates_removed` zeigt die Zahl der zusammengeführten Einträge. Dies ist eine bewusst konservative Prüfung und erkennt nicht alle physisch identischen Stationen mit verschiedenen Kennungen. Die Rohmeldungen bleiben im Kurzzeitarchiv erhalten.
 
 Tests: `python -m unittest discover -s tests`. Die Tests sind im Repository hinterlegt; ein erfolgreicher Actions-Lauf mit dieser Änderung steht noch aus.
+
+## CWOP-Kandidaten und automatische Tests (v0.6)
+
+Die APRS-IS-Erfassung markiert Kennungen nach den Mustern `CW`, `DW`, `EW` oder `FW` plus 4–6 Ziffern (optional APRS-SSID) als **CWOP-Kandidaten** (`source: CWOP`, `source_classification: callsign_pattern`). Diese Mustererkennung ist keine bestätigte CWOP-Registrierung; andere registrierte CWOP-Stationen können weiter als APRS erscheinen. Der Datenweg bleibt APRS-IS; keine zusätzliche CWOP-Verbindung. Für eine verbindliche Zuordnung wäre ein zuverlässiger Stationsregisterabgleich nötig.
+
+Der GitHub-Actions-Workflow führt jetzt vor jeder Sammlung `python -m unittest discover -s tests -v` aus. Ein fehlerhafter Test stoppt den Lauf, bevor neue Daten erzeugt werden. Die neue Version muss noch durch einen Workflow-Lauf bestätigt werden.
