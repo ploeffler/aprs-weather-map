@@ -21,6 +21,7 @@ jobs:
       - name: Collect APRS-IS weather packets
         env:
           APRS_CALLSIGN: ${{ vars.APRS_CALLSIGN }}
+          APRS_PASSCODE: ${{ secrets.APRS_PASSCODE }}
         run: python src/collector.py --duration 180
       - name: Commit snapshot
         run: |
