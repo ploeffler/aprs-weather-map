@@ -29,3 +29,9 @@ GitHub Pages ist für private Repositories nicht in jedem Tarif verfügbar; eine
 Der Collector prüft Koordinaten und plausible Messwertgrenzen feldweise. Ungültige Felder werden verworfen, während gültige Werte erhalten bleiben. Die Statistik steht in `data/latest.json → quality`. Die eingegangenen gültigen Einzelbeobachtungen werden in `data/archive/YYYY-MM-DD.jsonl` protokolliert und für den aktuellen und vorherigen UTC-Kalendertag im Repository gehalten. Dies ist ein **kurzfristiges Rohdatenarchiv**, keine vollständige historische Datenbank. Bei mehreren Meldungen derselben Station zeigt die Karte nur die neueste Meldung des Erfassungsfensters.
 
 Wichtig: `pressure_reference: unknown` bedeutet, dass die Druckmessung **nicht** als Meereshöhendruck verifiziert wurde. Für Isobaren ist eine zusätzliche Prüfung erforderlich. Zeitliche Plausibilität bezieht sich derzeit auf die **Empfangszeit**; das tatsächliche Alter einer weitergeleiteten APRS-Meldung ist noch nicht geprüft. Die begrenzten dreiminütigen Sammelfenster bleiben bestehen.
+
+## Temperaturkarte v0.3
+
+Nach jeder Erfassung erzeugt `src/temperature_map.py` die Datei `data/temperature.geojson`. Die Webkarte bietet separat schaltbare farbige Temperaturflächen, Isothermen in 5-°C-Schritten und Stationspunkte. Die Berechnung verwendet ausschließlich APRS-Temperaturen: inverse Distanzgewichtung (IDW) auf einem 2°-Raster mit maximal sechs Nachbarn; mindestens drei Stationen müssen innerhalb von 300 km liegen. Unzureichend abgedeckte Bereiche bleiben leer. Die Ergebnisse sind grob aufgelöste Näherungen und keine vollständige Wetteranalyse. Die Darstellung ist nicht als präzise lokale Prognose geeignet.
+
+Die Erfassung bleibt eine dreiminütige Stichprobe alle 15 Minuten; die zeitliche Aktualität der ursprünglichen APRS-Messung wird noch nicht vollständig geprüft. Für eine lokale Vorschau: `python -m http.server 8000` im Repository-Hauptverzeichnis, danach `http://localhost:8000/web/` öffnen.
