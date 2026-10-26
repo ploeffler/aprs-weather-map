@@ -23,9 +23,11 @@ jobs:
           APRS_CALLSIGN: ${{ vars.APRS_CALLSIGN }}
           APRS_PASSCODE: ${{ secrets.APRS_PASSCODE }}
         run: python src/collector.py --duration 180
+      - name: Generate temperature map
+        run: python src/temperature_map.py
       - name: Commit snapshot
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data/latest.json data/archive
+          git add -A data/latest.json data/archive data/temperature.geojson
           git diff --cached --quiet || (git commit -m "Update APRS weather snapshot" && git push)
