@@ -47,9 +47,9 @@ const legend=L.control({position:'bottomright'});
 legend.onAdd=()=>{const el=L.DomUtil.create('div','legend');el.innerHTML='<b>Temperatur °C</b><div class="swatches">'+stops.map(([v,c])=>'<span style="background:'+c+'" title="'+v+' °C"></span>').join('')+'</div><div>−40 −20 −10 0 10 20 30 40+</div><div>Weiß = keine belastbare Abdeckung</div>';return el};
 legend.addTo(map);
 Promise.all([
- fetch('../data/latest.json').then(r=>{if(!r.ok)throw Error('Stationsdaten fehlen');return r.json()}),
- fetch('../data/temperature.geojson').then(r=>{if(!r.ok)throw Error('Temperaturkarte noch nicht erzeugt');return r.json()}),
- fetch('../data/pressure.geojson').then(r=>{if(!r.ok)throw Error('Luftdruckkarte noch nicht erzeugt');return r.json()})
+ fetch('./data/latest.json').then(r=>{if(!r.ok)throw Error('Stationsdaten fehlen');return r.json()}),
+ fetch('./data/temperature.geojson').then(r=>{if(!r.ok)throw Error('Temperaturkarte noch nicht erzeugt');return r.json()}),
+ fetch('./data/pressure.geojson').then(r=>{if(!r.ok)throw Error('Luftdruckkarte noch nicht erzeugt');return r.json()})
 ]).then(([data,geo,pressureGeo])=>{
  rainStations=(data.stations||[]).filter(s=>Number.isFinite(s.latitude)&&Number.isFinite(s.longitude));
  renderRain();
