@@ -1,0 +1,50 @@
+name: Publish weather map to GitHub Pages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'data/latest.json'
+      - 'data/temperature.geojson'
+      - 'data/pressure.geojson'
+      - '.github/workflows/pages.yml'
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Prepare static site
+        run: |
+          mkdir -p _site/data
+          cp web/index.html _site/index.html
+          cp -R web/. _site/
+          cp data/latest.json data/temperature.geojson data/pressure.geojson _site/data/
+          test -s _site/index.html
+          test -s _site/data/latest.json
+          test -s _site/data/temperature.geojson
+          test -s _site/data/pressure.geojson
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for file in Path('_site/data').iterdir():
+              json.loads(file.read_text(encoding='utf-8'))
+              print('Validated', file)
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
