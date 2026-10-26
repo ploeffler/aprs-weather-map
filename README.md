@@ -35,3 +35,15 @@ Wichtig: `pressure_reference: unknown` bedeutet, dass die Druckmessung **nicht**
 Nach jeder Erfassung erzeugt `src/temperature_map.py` die Datei `data/temperature.geojson`. Die Webkarte bietet separat schaltbare farbige Temperaturflächen, Isothermen in 5-°C-Schritten und Stationspunkte. Die Berechnung verwendet ausschließlich APRS-Temperaturen: inverse Distanzgewichtung (IDW) auf einem 2°-Raster mit maximal sechs Nachbarn; mindestens drei Stationen müssen innerhalb von 300 km liegen. Unzureichend abgedeckte Bereiche bleiben leer. Die Ergebnisse sind grob aufgelöste Näherungen und keine vollständige Wetteranalyse. Die Darstellung ist nicht als präzise lokale Prognose geeignet.
 
 Die Erfassung bleibt eine dreiminütige Stichprobe alle 15 Minuten; die zeitliche Aktualität der ursprünglichen APRS-Messung wird noch nicht vollständig geprüft. Für eine lokale Vorschau: `python -m http.server 8000` im Repository-Hauptverzeichnis, danach `http://localhost:8000/web/` öffnen.
+
+## Integrierter Mini-Webserver
+
+Nach dem Herunterladen oder Klonen des Projekts genügt:
+
+```bash
+python server.py
+```
+
+Danach im Browser `http://127.0.0.1:8000/` öffnen. Der Webserver liefert die interaktive Karte und die bereits vorhandenen Dateien unter `data/` aus. Es werden keine zusätzlichen Python-Pakete für den Webserver benötigt. Optional: `python server.py --port 8080`; für den Zugriff aus dem lokalen Netzwerk ausdrücklich `python server.py --host 0.0.0.0` verwenden (Firewall und Zugriffsschutz beachten).
+
+**Wichtig:** Der Mini-Webserver zeigt lokal gespeicherte Ergebnisse an; er führt nicht automatisch einen APRS-IS-Empfang durch. Die Karte lädt Leaflet und OpenStreetMap-Kacheln weiterhin über das Internet. Da der Server das gesamte Projektverzeichnis bereitstellt, sollte er **nicht öffentlich exponiert** werden; insbesondere dürfen keine Secrets im Projektverzeichnis abgelegt werden. Eine spätere Version soll die Auslieferung auf `web/` und ausgewählte Datenendpunkte beschränken.
