@@ -62,6 +62,7 @@ def collect(duration=180, output="data/latest.json", enable_metar=True):
     source_stats = {"APRS": sum(s["source"] == "APRS" for s in observations),
                     "CWOP": sum(s["source"] == "CWOP" for s in observations),
                     "METAR": 0}
+    source_status = {"APRS": "ok", "CWOP": "shared_aprs_feed", "METAR": "disabled" if not enable_metar else "pending"}
     if enable_metar:
         try:
             metar = fetch_metar()
@@ -69,7 +70,11 @@ def collect(duration=180, output="data/latest.json", enable_metar=True):
                 observations.append(obs)
                 stations["METAR:" + obs["station_id"]] = obs
             source_stats["METAR"] = len(metar)
+            source_status["METAR"] = "ok" if metar else "empty"
+            if not metar:
+                print("::warning::METAR import returned zero valid stations")
         except Exception as exc:
+            source_status["METAR"] = "error"
             print(f"::warning::METAR feed unavailable; keeping APRS/CWOP observations: {exc}")
     append_observations(observations)
     target = Path(output)
@@ -79,8 +84,10 @@ def collect(duration=180, output="data/latest.json", enable_metar=True):
         "collection_seconds": duration,
         "quality": stats,
         "sources": source_stats,
+        "source_status": source_status,
         "stations": list(stations.values())
     }, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Sources: {source_stats}; status: {source_status}")
     print(f"Saved {len(stations)} stations, archived {len(observations)} observations, QC: {stats}")
 
 if __name__ == "__main__":
