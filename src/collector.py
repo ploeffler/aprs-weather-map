@@ -6,9 +6,13 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 import aprslib
+from quality import normalize
+from archive import append_observations
 
 def collect(duration=180, output="data/latest.json"):
     stations = {}
+    observations = []
+    stats = {"received": 0, "accepted": 0, "rejected": 0, "rejected_fields": 0}
     callsign = os.environ.get("APRS_CALLSIGN", "N0CALL")
     server = os.environ.get("APRS_SERVER", "rotate.aprs2.net")
     port = int(os.environ.get("APRS_PORT", "14580"))
@@ -22,22 +26,20 @@ def collect(duration=180, output="data/latest.json"):
     def callback(packet):
         if time.monotonic() >= deadline:
             raise StopIteration()
+        stats["received"] += 1
         try:
             item = aprslib.parse(packet)
         except Exception:
+            stats["rejected"] += 1
             return
-        wx = item.get("weather")
-        lat, lon = item.get("latitude"), item.get("longitude")
-        if not isinstance(wx, dict) or lat is None or lon is None:
+        observation = normalize(item, datetime.now(timezone.utc).isoformat())
+        if observation is None:
+            stats["rejected"] += 1
             return
-        call = item.get("from", "")
-        if not call:
-            return
-        stations[call] = {
-            "callsign": call, "latitude": lat, "longitude": lon,
-            "received_at": datetime.now(timezone.utc).isoformat(),
-            "weather": wx,
-        }
+        stats["accepted"] += 1
+        stats["rejected_fields"] += len(observation["rejected_fields"])
+        observations.append(observation)
+        stations[observation["callsign"]] = observation
 
     try:
         ais.connect()
@@ -49,14 +51,16 @@ def collect(duration=180, output="data/latest.json"):
             ais.close()
         except Exception:
             pass
+    append_observations(observations)
     target = Path(output)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "collection_seconds": duration,
+        "quality": stats,
         "stations": list(stations.values())
     }, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Saved {len(stations)} weather stations to {target}")
+    print(f"Saved {len(stations)} stations, archived {len(observations)} observations, QC: {stats}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
