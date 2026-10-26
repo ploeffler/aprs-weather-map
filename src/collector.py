@@ -9,6 +9,7 @@ import aprslib
 from quality import normalize
 from archive import append_observations
 from metar import fetch_metar
+from dedup import deduplicate
 
 def collect(duration=180, output="data/latest.json", enable_metar=True):
     stations = {}
@@ -76,6 +77,7 @@ def collect(duration=180, output="data/latest.json", enable_metar=True):
         except Exception as exc:
             source_status["METAR"] = "error"
             print(f"::warning::METAR feed unavailable; keeping APRS/CWOP observations: {exc}")
+    unique_stations, duplicates = deduplicate(list(stations.values()))
     append_observations(observations)
     target = Path(output)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -85,10 +87,12 @@ def collect(duration=180, output="data/latest.json", enable_metar=True):
         "quality": stats,
         "sources": source_stats,
         "source_status": source_status,
-        "stations": list(stations.values())
+        "cross_source_duplicates_removed": duplicates,
+        "stations": unique_stations
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Sources: {source_stats}; status: {source_status}")
-    print(f"Saved {len(stations)} stations, archived {len(observations)} observations, QC: {stats}")
+    print(f"Deduplicated {duplicates} station entries")
+    print(f"Saved {len(unique_stations)} stations, archived {len(observations)} observations, QC: {stats}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
