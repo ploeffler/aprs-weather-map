@@ -12,7 +12,10 @@ def collect(duration=180, output="data/latest.json"):
     callsign = os.environ.get("APRS_CALLSIGN", "N0CALL")
     server = os.environ.get("APRS_SERVER", "rotate.aprs2.net")
     port = int(os.environ.get("APRS_PORT", "14580"))
-    ais = aprslib.IS(callsign, passwd=-1, host=server, port=port)
+    passcode = os.environ.get("APRS_PASSCODE", "").strip()
+    if not passcode:
+        raise RuntimeError("APRS_PASSCODE fehlt. Bitte als GitHub Actions Secret hinterlegen.")
+    ais = aprslib.IS(callsign, passwd=passcode, host=server, port=port)
     ais.set_filter("t/w")
     deadline = time.monotonic() + duration
 
