@@ -38,6 +38,7 @@ map.createPane('isotherms');map.getPane('isotherms').style.zIndex=360;
 map.createPane('pressure');map.getPane('pressure').style.zIndex=345;
 map.createPane('isobars');map.getPane('isobars').style.zIndex=365;
 const isobarLabels=L.layerGroup(),pressureCenters=L.layerGroup();
+const pressureCenterCandidates=[];
 const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup(),pressures=L.layerGroup(),isobars=L.layerGroup(),rain=L.layerGroup();
 let rainStations=[];
 const stops=[[-40,'#302a8b'],[-20,'#3468d6'],[-10,'#56b5e9'],[0,'#b5e3f5'],[10,'#cbe989'],[20,'#f8df62'],[30,'#f38a40'],[40,'#bf3636']];
@@ -120,7 +121,7 @@ Promise.all([
    const [lon,lat]=feature.geometry.coordinates;
    const high=props.kind==='high';
    const icon=L.divIcon({className:'pressure-center '+(high?'high':'low'),html:high?'H':'T',iconSize:[30,34],iconAnchor:[15,17]});
-   L.marker([lat,lon],{icon}).bindPopup((high?'Lokales Hochdruckzentrum':'Lokales Tiefdruckzentrum')+' · '+escapeHtml(props.hpa)+' hPa<br>Aus Messwerten interpoliert; vorläufige Lokalisierung').addTo(pressureCenters);
+   pressureCenterCandidates.push({lat,lon,high,hpa:props.hpa});
   }else if(props.kind==='cell'){
    const h=props.hpa;
    const shade=h<995?'#2455a4':h<1005?'#5d9bcb':h<1015?'#b3d6da':h<1025?'#e8cc81':'#c77e46';
@@ -150,25 +151,44 @@ Promise.all([
  const bounds=L.featureGroup(cells.getLayers()).getBounds();
  if(bounds && bounds.isValid()) map.fitBounds(bounds,{padding:[24,24],maxZoom:5});
  map.invalidateSize();
- function updateIsobarLabels(){
+ function updatePressureAnnotations(){
   isobarLabels.clearLayers();
+  pressureCenters.clearLayers();
   if(!map.hasLayer(isobars))return;
-  const bounds=map.getBounds(),seen=new Set();
-  const candidates=isobarCandidates.filter(c=>bounds.contains([c.lat,c.lon])).sort((a,b)=>b.length-a.length);
+  const bounds=map.getBounds(),zoom=map.getZoom();
   const placed=[];
+  // Labels are suppressed at overview scales and progressively added on zoom.
+  const minDistance=zoom<=3?170:zoom<=5?125:85;
+  const maxLabels=zoom<=3?8:zoom<=5?16:30;
+  const centers=pressureCenterCandidates.filter(c=>bounds.contains([c.lat,c.lon]));
+  for(const center of centers){
+   const pt=map.latLngToContainerPoint([center.lat,center.lon]);
+   if(placed.some(p=>Math.hypot(pt.x-p.x,pt.y-p.y)<minDistance))continue;
+   const icon=L.divIcon({className:'pressure-center '+(center.high?'high':'low'),
+     html:(center.high?'H':'T')+'<span style="display:block;font:600 11px system-ui">'+escapeHtml(center.hpa)+' hPa</span>',
+     iconSize:[66,52],iconAnchor:[33,26]});
+   L.marker([center.lat,center.lon],{icon})
+     .bindPopup((center.high?'Lokales Hochdruckzentrum':'Lokales Tiefdruckzentrum')+' · '+escapeHtml(center.hpa)+' hPa<br>Aus Messwerten interpoliert; vorläufige Lokalisierung')
+     .addTo(pressureCenters);
+   placed.push(pt);
+  }
+  const seen=new Set();
+  const candidates=isobarCandidates.filter(c=>bounds.contains([c.lat,c.lon]))
+    .sort((a,b)=>b.length-a.length);
+  let labels=0;
   for(const candidate of candidates){
    if(seen.has(candidate.hpa))continue;
    const pt=map.latLngToContainerPoint([candidate.lat,candidate.lon]);
-   if(placed.some(p=>Math.hypot(pt.x-p.x,pt.y-p.y)<90))continue;
+   if(placed.some(p=>Math.hypot(pt.x-p.x,pt.y-p.y)<minDistance))continue;
    seen.add(candidate.hpa);placed.push(pt);
    const icon=L.divIcon({className:'isobar-label',html:escapeHtml(candidate.hpa)+' hPa',iconSize:[64,20],iconAnchor:[32,10]});
    L.marker([candidate.lat,candidate.lon],{icon,interactive:false,keyboard:false}).addTo(isobarLabels);
-   if(placed.length>=18)break;
+   if(++labels>=maxLabels)break;
   }
  }
- map.on('moveend zoomend',updateIsobarLabels);
- document.getElementById('isobars').addEventListener('change',updateIsobarLabels);
- updateIsobarLabels();
+ map.on('moveend zoomend',updatePressureAnnotations);
+ document.getElementById('isobars').addEventListener('change',updatePressureAnnotations);
+ updatePressureAnnotations();
  document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+(pressureGeo.metadata?.pressure_stations||0)+' mit Meeresspiegeldruck · '+rainStations.filter(s=>Number.isFinite(s.weather?.rain_1h)).length+' mit Stunden-Niederschlag · '+data.generated_at+' · APRS-Stichprobe';
 }).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
