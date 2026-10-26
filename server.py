@@ -15,6 +15,7 @@ DATA = (ROOT / "data").resolve()
 DATA_FILES = {
     "/data/latest.json": DATA / "latest.json",
     "/data/temperature.geojson": DATA / "temperature.geojson",
+    "/data/pressure.geojson": DATA / "pressure.geojson",
 }
 
 class Handler(BaseHTTPRequestHandler):
