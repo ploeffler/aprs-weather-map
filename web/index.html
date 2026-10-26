@@ -7,6 +7,8 @@
 <label><input type="checkbox" id="temperature" checked> Temperaturflächen</label>
 <label><input type="checkbox" id="isotherms" checked> Isothermen (5 °C)</label>
 <label><input type="checkbox" id="stations" checked> Wetterstationen</label>
+<label><input type="checkbox" id="pressure"> Luftdruckflächen</label>
+<label><input type="checkbox" id="isobars"> Isobaren (5 hPa)</label>
 <label><input type="checkbox" id="wind"> Windpfeile (Messwerte)</label>
 <small id="status">Lade APRS-Daten …</small></header>
 <div id="map"></div>
@@ -16,11 +18,13 @@ const map=L.map('map').setView([25,0],3);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:18}).addTo(map);
 map.createPane('temperature');map.getPane('temperature').style.zIndex=350;
 map.createPane('isotherms');map.getPane('isotherms').style.zIndex=360;
-const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup();
+map.createPane('pressure');map.getPane('pressure').style.zIndex=345;
+map.createPane('isobars');map.getPane('isobars').style.zIndex=365;
+const points=L.layerGroup().addTo(map),cells=L.layerGroup().addTo(map),lines=L.layerGroup().addTo(map),winds=L.layerGroup(),pressures=L.layerGroup(),isobars=L.layerGroup();
 const stops=[[-40,'#302a8b'],[-20,'#3468d6'],[-10,'#56b5e9'],[0,'#b5e3f5'],[10,'#cbe989'],[20,'#f8df62'],[30,'#f38a40'],[40,'#bf3636']];
 function color(t){for(let i=1;i<stops.length;i++)if(t<stops[i][0])return stops[i-1][1];return stops[stops.length-1][1]}
 function escapeHtml(x){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points],['wind',winds]]){
+for(const [id,layer] of [['temperature',cells],['isotherms',lines],['stations',points],['wind',winds],['pressure',pressures],['isobars',isobars]]){
  document.getElementById(id).addEventListener('change',e=>e.target.checked?layer.addTo(map):map.removeLayer(layer));
 }
 const legend=L.control({position:'bottomright'});
@@ -28,8 +32,9 @@ legend.onAdd=()=>{const el=L.DomUtil.create('div','legend');el.innerHTML='<b>Tem
 legend.addTo(map);
 Promise.all([
  fetch('../data/latest.json').then(r=>{if(!r.ok)throw Error('Stationsdaten fehlen');return r.json()}),
- fetch('../data/temperature.geojson').then(r=>{if(!r.ok)throw Error('Temperaturkarte noch nicht erzeugt');return r.json()})
-]).then(([data,geo])=>{
+ fetch('../data/temperature.geojson').then(r=>{if(!r.ok)throw Error('Temperaturkarte noch nicht erzeugt');return r.json()}),
+ fetch('../data/pressure.geojson').then(r=>{if(!r.ok)throw Error('Luftdruckkarte noch nicht erzeugt');return r.json()})
+]).then(([data,geo,pressureGeo])=>{
  let count=0, windCount=0;
  for(const s of data.stations||[]){
   if(!Number.isFinite(s.latitude)||!Number.isFinite(s.longitude))continue;
@@ -69,6 +74,17 @@ Promise.all([
    .bindPopup(escapeHtml(props.celsius)+' °C – interpolierte Isotherme').addTo(lines);
   }
  }
- document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+data.generated_at+' · APRS-Stichprobe';
+ for(const feature of pressureGeo.features||[]){
+  const props=feature.properties||{};
+  if(props.kind==='cell'){
+   const h=props.hpa;
+   const shade=h<995?'#2455a4':h<1005?'#5d9bcb':h<1015?'#b3d6da':h<1025?'#e8cc81':'#c77e46';
+   L.geoJSON(feature,{pane:'pressure',style:{color:shade,fillColor:shade,weight:0,fillOpacity:.48,interactive:false}}).addTo(pressures);
+  }else if(props.kind==='isobar'){
+   L.geoJSON(feature,{pane:'isobars',style:{color:'#642477',weight:1.8,opacity:.9}})
+    .bindPopup(escapeHtml(props.hpa)+' hPa – interpolierte Isobare (Meeresspiegeldruck)').addTo(isobars);
+  }
+ }
+ document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+windCount+' mit Wind · '+(pressureGeo.metadata?.pressure_stations||0)+' mit Meeresspiegeldruck · '+data.generated_at+' · APRS-Stichprobe';
 }).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
