@@ -8,8 +8,9 @@ from pathlib import Path
 import aprslib
 from quality import normalize
 from archive import append_observations
+from metar import fetch_metar
 
-def collect(duration=180, output="data/latest.json"):
+def collect(duration=180, output="data/latest.json", enable_metar=True):
     stations = {}
     observations = []
     stats = {"received": 0, "accepted": 0, "rejected": 0, "rejected_fields": 0}
@@ -36,10 +37,17 @@ def collect(duration=180, output="data/latest.json"):
         if observation is None:
             stats["rejected"] += 1
             return
+        # CWOP uses APRS-IS transport; only explicitly identifiable CW IDs
+        # are labeled CWOP. Other callsigns retain the APRS label.
+        call = observation["callsign"].upper()
+        source = "CWOP" if call.startswith("CW") and call[2:].isdigit() else "APRS"
+        observation["source"] = source
+        observation["station_id"] = observation["callsign"]
+        observation["observed_at"] = None  # APRS packet time not verified
         stats["accepted"] += 1
         stats["rejected_fields"] += len(observation["rejected_fields"])
         observations.append(observation)
-        stations[observation["callsign"]] = observation
+        stations[source + ":" + observation["callsign"]] = observation
 
     try:
         ais.connect()
@@ -51,6 +59,18 @@ def collect(duration=180, output="data/latest.json"):
             ais.close()
         except Exception:
             pass
+    source_stats = {"APRS": sum(s["source"] == "APRS" for s in observations),
+                    "CWOP": sum(s["source"] == "CWOP" for s in observations),
+                    "METAR": 0}
+    if enable_metar:
+        try:
+            metar = fetch_metar()
+            for obs in metar:
+                observations.append(obs)
+                stations["METAR:" + obs["station_id"]] = obs
+            source_stats["METAR"] = len(metar)
+        except Exception as exc:
+            print(f"::warning::METAR feed unavailable; keeping APRS/CWOP observations: {exc}")
     append_observations(observations)
     target = Path(output)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -58,6 +78,7 @@ def collect(duration=180, output="data/latest.json"):
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "collection_seconds": duration,
         "quality": stats,
+        "sources": source_stats,
         "stations": list(stations.values())
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Saved {len(stations)} stations, archived {len(observations)} observations, QC: {stats}")
@@ -66,5 +87,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--duration", type=int, default=180)
     parser.add_argument("--output", default="data/latest.json")
+    parser.add_argument("--no-metar", action="store_true", help="Disable external METAR import")
     args = parser.parse_args()
-    collect(args.duration, args.output)
+    collect(args.duration, args.output, enable_metar=not args.no_metar)
