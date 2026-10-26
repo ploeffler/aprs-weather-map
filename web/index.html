@@ -34,7 +34,7 @@ Promise.all([
   if(!Number.isFinite(s.latitude)||!Number.isFinite(s.longitude))continue;
   const details=Object.entries(s.weather||{}).map(([k,v])=>'<div>'+escapeHtml(k)+': '+escapeHtml(v)+'</div>').join('');
   L.circleMarker([s.latitude,s.longitude],{radius:4,color:'#124d83',weight:1,fillColor:'#ffffff',fillOpacity:.9})
-  .bindPopup('<b>'+escapeHtml(s.callsign)+'</b><div>'+escapeHtml(s.received_at)+'</div>'+details).addTo(points);
+  .bindPopup('<b>'+escapeHtml(s.callsign)+'</b><div>Quelle: '+escapeHtml(s.source||'APRS')+'</div><div>Messzeit: '+escapeHtml(s.observed_at||'nicht verifiziert')+'</div><div>'+escapeHtml(s.received_at)+'</div>'+details).addTo(points);
   count++;
  }
  for(const feature of geo.features||[]){
@@ -46,6 +46,6 @@ Promise.all([
    .bindPopup(escapeHtml(props.celsius)+' °C – interpolierte Isotherme').addTo(lines);
   }
  }
- document.getElementById('status').textContent=count+' Stationen · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+data.generated_at+' · APRS-Stichprobe';
+ document.getElementById('status').textContent=count+' Stationen (APRS/CWOP/METAR) · '+(geo.metadata?.temperature_stations||0)+' mit Temperatur · '+data.generated_at+' · APRS-Stichprobe';
 }).catch(e=>document.getElementById('status').textContent='Karte nicht vollständig: '+e.message);
 </script></body></html>
