@@ -57,3 +57,9 @@ Danach im Browser `http://127.0.0.1:8000/` öffnen. Der Webserver liefert die in
 Alle Quellen erhalten `source`, `station_id` und soweit zuverlässig vorhanden `observed_at`. Bei APRS/CWOP ist derzeit nur `received_at` gesichert. Quellen sind in `data/latest.json → sources` getrennt ausgewiesen. Eine systemübergreifende Dublettenerkennung, ein verbindlicher Lizenz-/Nutzungsbedingungencheck sowie METAR-Feld- und Stationsabdeckungs-Tests stehen noch aus. Die Temperaturkarte interpoliert die zusammengeführten Beobachtungen ohne externe Modellwerte.
 
 METAR-Import kann lokal mit `python src/collector.py --no-metar` deaktiviert werden. Der Abruf ist im Collector standardmäßig aktiv. **Nicht** für die operative Luftfahrt verwenden.
+
+## Stations-Dublettenprüfung (v0.5)
+
+Vor der Kartenerstellung werden Stationsdatensätze nur bei **identischer Stationskennung** (ohne APRS-SSID) und maximal 1 km Positionsabweichung zusammengeführt. Verschiedene Stationen am selben Ort bleiben erhalten. Bei Übereinstimmung wird die Meldung mit verifizierter Beobachtungszeit bevorzugt; Herkunftsquellen werden in `also_reported_by` festgehalten. Es werden keine Einzelmessfelder aus verschiedenen Meldungen vermischt. `cross_source_duplicates_removed` zeigt die Zahl der zusammengeführten Einträge. Dies ist eine bewusst konservative Prüfung und erkennt nicht alle physisch identischen Stationen mit verschiedenen Kennungen. Die Rohmeldungen bleiben im Kurzzeitarchiv erhalten.
+
+Tests: `python -m unittest discover -s tests`. Die Tests sind im Repository hinterlegt; ein erfolgreicher Actions-Lauf mit dieser Änderung steht noch aus.
