@@ -81,3 +81,11 @@ Die Webkarte bietet den separat schaltbaren Layer **Windpfeile (Messwerte)**. Pf
 ## Niederschlag (v0.9)
 
 Die Webkarte bietet einen optionalen Layer für gemeldete Niederschlagsmengen. Über die Auswahl kann zwischen `rain_1h` (letzte Stunde), `rain_24h` (letzte 24 Stunden) und `rain_since_midnight` (seit Mitternacht) gewechselt werden. Jede Messung wird **nur an ihrer Stationsposition** als Kreis angezeigt; Kreisgröße und Farbe codieren die Menge in mm, der Popup zeigt den Zahlenwert. Fehlende Felder werden ausgelassen; 0 mm ist ein gültiger Messwert. Es erfolgt keine räumliche Interpolation und keine Ableitung zwischen den Messintervallen. Bei „seit Mitternacht“ kann die lokale Tagesgrenze je Station unterschiedlich sein. Die neue Ebene ist standardmäßig deaktiviert. Die Kartenansicht benötigt einen gesonderten Browsertest.
+
+## Öffentliche Wetterkarte über GitHub Pages
+
+Die interaktive Karte wird aus `web/index.html` und den automatisch erzeugten Dateien `data/latest.json`, `data/temperature.geojson` und `data/pressure.geojson` als **statische Website** veröffentlicht. Die Kartenebenen (Temperatur, Isothermen, Wind, Luftdruck, Isobaren, Niederschlag) werden clientseitig mit Leaflet dargestellt. Die Daten sind GeoJSON und JSON, keine vorgerenderten Bilder; eine zusätzliche Bildgenerierung ist nicht erforderlich.
+
+**Einmalige Einrichtung:** Unter **Settings → Pages → Build and deployment → Source** die Option **GitHub Actions** auswählen. Anschließend den Workflow **Publish weather map to GitHub Pages** einmal manuell starten oder auf den nächsten Push warten. Erwartete Adresse: https://ploeffler.github.io/aprs-weather-map/ (erst nach erfolgreichem Deployment erreichbar).
+
+Der Pages-Workflow wird bei Änderungen an der Website oder den generierten Wetterdaten automatisch ausgelöst. Die Datensammlung läuft weiterhin alle 15 Minuten; nach erfolgreichem Commit wird die statische Seite neu veröffentlicht. GitHub Pages führt keinen Python-Code aus. Der lokale Server (`python server.py`) bleibt nutzbar. Beachte: Bei einem öffentlichen Repository sind veröffentlichte Stationsdaten und Karten weltweit abrufbar; **niemals Secrets oder Archive in `_site` kopieren**.
